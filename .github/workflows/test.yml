@@ -29,17 +29,17 @@ jobs:
   
       - name: Test running the backup manually
         run: |
-          chmod +x backup_script.sh
-          ./backup_script.sh
+          chmod +x backup.sh
+          ./backup.sh
         env:
           BACKUP_DIR: "/tmp/test_backup_dir"
 
       - name: Test scheduling the cron job
         run: |
-          chmod +x backup_script.sh
-          ./backup_script.sh
+          chmod +x backup.sh
+          ./backup.sh
           # Check if cron job is added
-          crontab -l | grep "backup_script.sh"
+          crontab -l | grep "backup.sh"
 
       - name: Test backup directory creation
         run: |
@@ -51,7 +51,7 @@ jobs:
 
       - name: Test backup encryption
         run: |
-          echo "y" | ./backup_script.sh  # Assuming 'y' input will trigger encryption
+          echo "y" | ./backup.sh  # Assuming 'y' input will trigger encryption
           if [ ! -f "/tmp/backup/backup_*.tar.gz.gpg" ]; then
             echo "Backup was not encrypted!"
             exit 1

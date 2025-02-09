@@ -1,0 +1,63 @@
+name: Backup Script Tests
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  test-backup-script:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gpg
+          sudo apt-get install -y cron
+          sudo apt-get install -y util-linux  # For lsblk and mount commands
+
+      - name: Create backup config file
+        run: |
+          echo "backup_dir=\"/tmp/backup\"" > backup_config
+          echo "device=\"/dev/sda1\"" >> backup_config  # Mock device for mounting
+          echo "data_choices=\"1 3 5\"" >> backup_config  # Simulate file selection
+  
+      - name: Test running the backup manually
+        run: |
+          chmod +x backup_script.sh
+          ./backup_script.sh
+        env:
+          BACKUP_DIR: "/tmp/test_backup_dir"
+
+      - name: Test scheduling the cron job
+        run: |
+          chmod +x backup_script.sh
+          ./backup_script.sh
+          # Check if cron job is added
+          crontab -l | grep "backup_script.sh"
+
+      - name: Test backup directory creation
+        run: |
+          if [ ! -d "/tmp/backup" ]; then
+            echo "Backup directory was not created!"
+            exit 1
+          fi
+          echo "Backup directory exists."
+
+      - name: Test backup encryption
+        run: |
+          echo "y" | ./backup_script.sh  # Assuming 'y' input will trigger encryption
+          if [ ! -f "/tmp/backup/backup_*.tar.gz.gpg" ]; then
+            echo "Backup was not encrypted!"
+            exit 1
+          fi
+          echo "Encrypted backup found."
+
+      - name: Clean up
+        run: |
+          rm -rf /tmp/backup

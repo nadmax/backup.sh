@@ -3,14 +3,23 @@
 CONFIG_FILE="backup_config"
 
 run() {
+    if [ -f "$CONFIG_FILE" ]; then
+        source "$CONFIG_FILE"
+        echo "Loaded previous backup configuration."
+    else
+        echo "No previous configuration found."
+    fi
+
     echo "Choose a backup option:"
     echo "1) One-time backup"
     echo "2) Schedule the backup via cron"
     echo "3) Exit"
 
-    read -p "Enter your choice (1-3): " choice
+    if [ -z "$backup_choice"] || [ $backup_choice -eq 3 ]; then
+        read -p "Enter your choice (1-3): " backup_choice
+    fi
 
-    case $choice in
+    case $backup_choice in
         1) backup_files;;
         2) schedule_cronjob;;
         3) echo "Exiting...";;
@@ -23,7 +32,7 @@ backup_files() {
 
     if [ -z "$backup_dir" ]; then
         backup_dir=$(get_backup_directory)
-        echo "backup_dir=\"$backup_dir\"" > "$CONFIG_FILE"
+        echo "backup_dir=\"$backup_dir\"" >> "$CONFIG_FILE"
     fi
 
     mount_backup_destination "$backup_dir"
@@ -48,11 +57,7 @@ backup_files() {
 }
 
 schedule_cronjob() {
-    if [ -f "$CONFIG_FILE" ]; then
-        source "$CONFIG_FILE"
-        echo "Loaded previous cron job settings."
-    else
-        echo "No previous configuration found."
+    if [ -z "$cron_time" ]; then
         backup_files
         read -p "Enter cronjob frequency (daily/weekly/monthly): " frequency
 
@@ -70,8 +75,8 @@ schedule_cronjob() {
         esac
 
         echo "cron_time=\"$cron_time\"" >> "$CONFIG_FILE"
-        echo "Cron job frequency set to: $frequency"
     fi
+    echo "Cron job frequency set to: $frequency"
 
     script_path=$(realpath "$0")
     cron_command="bash $script_path > /var/log/backup_$(date +"%Y%m%d_%H%M%S").log"

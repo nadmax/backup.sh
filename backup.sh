@@ -3,41 +3,100 @@
 CONFIG_FILE="backup_config"
 
 run() {
-    echo "Choose a backup option:"
-    echo "1) One-time backup"
-    echo "2) Schedule the backup via cron"
-    echo "3) Exit"
+    if [ -f $CONFIG_FILE ]; then
+        source $CONFIG_FILE
+        printf "Load previous backup configuration\n"
+    else
+        printf "No previous backup configuration found"
+        read -p $'\nWould you like your choices to be saved? (y/n) ' save_config
 
-    read -p "Enter your choice (1-3): " choice
+        case $save_config in
+            y|Y)
+                touch $CONFIG_FILE
+                printf "Your choices will be saved in %s\n" $CONFIG_FILE
+                ;;
+            n|N) ;;
+            *)
+                echo "Invalid choice: $save_config"
+                exit 1
+                ;;
+        esac
 
-    case $choice in
-        1) backup_files;;
-        2) schedule_cronjob;;
+        printf "\nChoose a backup option:\n"
+        echo "1) One-time backup"
+        echo "2) Schedule the backup via cron"
+        echo "3) Exit"
+    fi
+
+    if [ -z "$backup_option" ]; then
+        read -p "Enter your choice (1-3): " backup_option
+    fi
+
+    case $backup_option in
+        1)  save_config_option "backup_option" "$backup_option"
+            backup_files
+            ;;
+        2)  save_config_option "backup_option" "1"
+            schedule_cronjob
+            ;;
         3) echo "Exiting...";;
-        *) echo "Invalid option. Please choose between 1-3.";;
+        *) echo "Invalid choice. Please choose between 1-3.";;
     esac
 }
 
 backup_files() {
-    source "$CONFIG_FILE" 2>/dev/null
-
     if [ -z "$backup_dir" ]; then
         backup_dir=$(get_backup_directory)
-        echo "backup_dir=\"$backup_dir\"" > "$CONFIG_FILE"
-    fi
-
-    mount_backup_destination "$backup_dir"
-
-    local selected_files=($(get_file_selection))
-
-    if [ ${#selected_files[@]} -eq 0 ]; then
-        echo "No valid selections. Exiting..."
-        exit 1
+        save_config_option "backup_dir" "$backup_dir"
     fi
 
     if [ ! -d "$backup_dir" ]; then
         mkdir -p "$backup_dir"
-        echo "Created backup directory: $backup_dir"
+        printf "✅ Created backup directory: %s\n\n" $backup_dir
+    else
+        printf "\nBackup directory %s already exists\n" $backup_dir
+    fi
+
+
+    mount_backup_directory "$backup_dir"
+
+    local selected_files=()
+
+    echo "Select the data you want to back up (separate options with spaces):"
+    echo "1) SSH keys (~/.ssh)"
+    echo "2) System passwords (/etc/shadow, /etc/passwd)"
+    echo "3) Shell configs (~/.bashrc, ~/.zshrc)"
+    echo "4) Git config (~/.gitconfig)"
+    echo "5) Network settings (/etc/hosts, /etc/resolv.conf)"
+    echo "6) Secure app configs (~/.config, ~/.mozilla, ~/.google-chrome)"
+    echo "7) Logs & history (~/.bash_history, /var/log/auth.log)"
+    echo "8) SSL & GPG keys (/etc/ssl/private, ~/.gnupg)"
+    echo "9) Everything above"
+
+    if [ -z "$data_options" ]; then
+        read -p $'\nEnter your choices (e.g., 1 3 5): ' data_options
+    fi
+
+    for option in $data_options; do
+        case $option in
+            1) selected_files+=("$HOME/.ssh") ;;
+            2) selected_files+=("/etc/shadow" "/etc/passwd") ;;
+            3) selected_files+=("$HOME/.bashrc" "$HOME/.zshrc") ;;
+            4) selected_files+=("$HOME/.gitconfig") ;;
+            5) selected_files+=("/etc/hosts" "/etc/resolv.conf") ;;
+            6) selected_files+=("$HOME/.config" "$HOME/.mozilla" "$HOME/.google-chrome") ;;
+            7) selected_files+=("$HOME/.bash_history" "/var/log/auth.log") ;;
+            8) selected_files+=("/etc/ssl/private" "$HOME/.gnupg") ;;
+            9) selected_files=("$HOME/.ssh" "/etc/shadow" "/etc/passwd" "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.gitconfig" "/etc/hosts" "/etc/resolv.conf" "$HOME/.config" "$HOME/.mozilla" "$HOME/.google-chrome" "$HOME/.bash_history" "/var/log/auth.log" "/etc/ssl/private" "$HOME/.gnupg") ;;
+            *) echo "Invalid choice: $option" ;;
+        esac
+    done
+
+    save_config_option "data_options" "$data_options"
+
+    if [ ${#selected_files[@]} -eq 0 ]; then
+        echo "No valid selections. Exiting..."
+        exit 1
     fi
 
     local timestamp=$(date +"%Y%m%d_%H%M%S")
@@ -48,65 +107,60 @@ backup_files() {
 }
 
 schedule_cronjob() {
-    if [ -f "$CONFIG_FILE" ]; then
-        source "$CONFIG_FILE"
-        echo "Loaded previous cron job settings."
-    else
-        echo "No previous configuration found."
-        backup_files
-        read -p "Enter cronjob frequency (daily/weekly/monthly): " frequency
-
-        case $frequency in
-            daily) cron_time="0 2 * * *"  # Every day at 2 AM
-                ;;
-            weekly) cron_time="0 2 * * 0"  # Every Sunday at 2 AM
-                ;;
-            monthly) cron_time="0 2 1 * *"  # Every 1st of the month at 2 AM
-                ;;
-            *)
-                echo "Invalid frequency: $frequency"
-                exit 1
-                ;;
-        esac
-
-        echo "cron_time=\"$cron_time\"" >> "$CONFIG_FILE"
-        echo "Cron job frequency set to: $frequency"
+    if [ -z "$cron_frequency" ]; then
+        read -p "Enter cronjob frequency (daily/weekly/monthly): " cron_frequency
     fi
 
-    script_path=$(realpath "$0")
+    case $cron_frequency in
+        daily) cron_time="0 2 * * *"  # Every day at 2 AM
+            ;;
+        weekly) cron_time="0 2 * * 0"  # Every Sunday at 2 AM
+            ;;
+        monthly) cron_time="0 2 1 * *"  # Every 1st of the month at 2 AM
+            ;;
+        *)
+            echo "Invalid frequency: $cron_frequency"
+            exit 1
+            ;;
+    esac
+
+    save_config_option "cron_frequency" "$cron_frequency"
+    printf "Cron job frequency set to: %s\n" $cron_frequency
+
+    script_path="$HOME/backup.sh/backup.sh"
     cron_command="bash $script_path > /var/log/backup_$(date +"%Y%m%d_%H%M%S").log"
     cron_job="$cron_time $cron_command"
 
     (crontab -l; echo "$cron_job") | crontab -
     echo "✅ Cron job scheduled: $cron_job"
 
-    if [[ "$encrypt_choice" == "y" || "$encrypt_choice" == "Y" ]]; then
+    if [[ "$encrypt_option" == "y" || "$encrypt_option" == "Y" ]]; then
         cron_mount_check="mount | grep -q '$backup_dir' || mount /dev/sdb1 '$backup_dir'"
-        (crontab -l; echo "$cron_time $cron_mount_check && $cron_command") | crontab -
+        (crontab -l; echo "$cron_time $cron_mount_check &-& $cron_command") | crontab -
         echo "✅ Cron job updated to include mount check."
     fi
 }
 
 get_backup_directory() {
-    read -p "Enter the backup directory: " backup_path
+    read -p $'\nEnter the backup directory: ' backup_path
 
     echo "$backup_path"
 }
 
-mount_backup_destination() {
+mount_backup_directory() {
     local backup_dir="$1"
 
     while true; do 
         if ! mount | grep -q "$backup_dir"; then
-            echo "Backup destination ($backup_dir) is not mounted."
+            printf "\nBackup directory (%s) is not mounted.\n" $backup_dir
 
-            if [ -z $mount_choice ]; then
-                read -p "Would you like to mount it? (y/n): " mount_choice
-                echo "mount_choice=\"$mount_choice\"" >> "$CONFIG_FILE"
+            if [ -z $mount_option ]; then
+                read -p "Would you like to mount it? (y/n): " mount_option
             fi
 
-            case $mount_choice in
+            case $mount_option in
                 y|Y)
+                    save_config_option "mount_option" "$mount_option"
                     echo "Available devices:"
                     lsblk -o NAME,SIZE,MOUNTPOINT | grep -v "MOUNTPOINT"
 
@@ -132,10 +186,13 @@ mount_backup_destination() {
                         fi
                     else
                         echo "❌ Invalid device: $device. Please try again."
+                        sed -i '/device=/d' $CONFIG_FILE
+                        exit 1
                     fi
                     ;;
                 n|N)
-                    echo "No mounted backup destination selected. Backup will be done locally."
+                    save_config_option "mount_option" "$mount_option"
+                    printf "No mounted backup directory option selected. Backup will be done locally.\n\n"
                     break
                     ;;
                 *)
@@ -150,55 +207,18 @@ mount_backup_destination() {
     done
 }
 
-get_file_selection() {
-    local selected_files=()
-
-    echo "Select the data you want to back up (separate choices with spaces):"
-    echo "1) SSH keys (~/.ssh)"
-    echo "2) System passwords (/etc/shadow, /etc/passwd)"
-    echo "3) Shell configs (~/.bashrc, ~/.zshrc)"
-    echo "4) Git config (~/.gitconfig)"
-    echo "5) Network settings (/etc/hosts, /etc/resolv.conf)"
-    echo "6) Secure app configs (~/.config, ~/.mozilla, ~/.google-chrome)"
-    echo "7) Logs & history (~/.bash_history, /var/log/auth.log)"
-    echo "8) SSL & GPG keys (/etc/ssl/private, ~/.gnupg)"
-    echo "9) Everything above"
-
-    if [ -z "$data_choices" ]; then
-        read -p "Enter your choices (e.g., 1 3 5): " data_choices
-        echo "data_choices=\"$data_choices\"" >> "$CONFIG_FILE"
-    fi
-
-    for choice in $choices; do
-        case $choice in
-            1) selected_files+=("$HOME/.ssh") ;;
-            2) selected_files+=("/etc/shadow" "/etc/passwd") ;;
-            3) selected_files+=("$HOME/.bashrc" "$HOME/.zshrc") ;;
-            4) selected_files+=("$HOME/.gitconfig") ;;
-            5) selected_files+=("/etc/hosts" "/etc/resolv.conf") ;;
-            6) selected_files+=("$HOME/.config" "$HOME/.mozilla" "$HOME/.google-chrome") ;;
-            7) selected_files+=("$HOME/.bash_history" "/var/log/auth.log") ;;
-            8) selected_files+=("/etc/ssl/private" "$HOME/.gnupg") ;;
-            9) selected_files=("$HOME/.ssh" "/etc/shadow" "/etc/passwd" "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.gitconfig" "/etc/hosts" "/etc/resolv.conf" "$HOME/.config" "$HOME/.mozilla" "$HOME/.google-chrome" "$HOME/.bash_history" "/var/log/auth.log" "/etc/ssl/private" "$HOME/.gnupg") ;;
-            *) echo "Invalid choice: $choice" ;;
-        esac
-    done
-
-    echo "${selected_files[@]}"
-}
-
 create_backup_archive() {
     local backup_tar="$1"
     shift
     local files=("$@")
 
-    echo "Creating backup archive..."
     tar -czf "$backup_tar" "${files[@]}" 2>/dev/null
 
     if [ -f "$backup_tar" ]; then
-        echo "✅ Backup created: $backup_tar"
+        printf "✅ Backup created: %s\n" $backup_tar
     else
         echo "❌ Backup failed!"
+        rm -f $CONFIG_FILE
         exit 1
     fi
 }
@@ -207,12 +227,12 @@ encrypt_backup() {
     local backup_tar="$1"
     local backup_encrypted="$1.gpg"
 
-    if [ -z "$encrypt_choice" ]; then
-        read -p "Do you want to encrypt the backup? (y/n): " encrypt_choice
-        echo "encrypt_choice=\"$encrypt_choice\"" >> "$CONFIG_FILE"
+    if [ -z "$encrypt_option" ]; then
+        read -p $'\nWould you like to encrypt the backup? (y/n): ' encrypt_option
+        save_config_option "encrypt_option" "$encrypt_option"
     fi
 
-    if [[ "$encrypt_choice" == "y" || "$encrypt_choice" == "Y" ]]; then
+    if [[ "$encrypt_option" == "y" || "$encrypt_option" == "Y" ]]; then
         echo "🔐 Encrypting backup..."
         gpg --symmetric --cipher-algo AES256 "$backup_tar"
 
@@ -223,7 +243,16 @@ encrypt_backup() {
             echo "❌ Encryption failed!"
         fi
     else
-        echo "Backup created without encryption."
+        echo "✅ Backup created without encryption."
+    fi
+}
+
+save_config_option() {
+    local option_name="$1"
+    local option_value="$2"
+
+    if [ -f "$CONFIG_FILE" ] && ! grep -q "$option_name" "$CONFIG_FILE"; then
+        echo "$option_name=$option_value" >> $CONFIG_FILE
     fi
 }
 

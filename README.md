@@ -7,6 +7,7 @@ This script give you two options to backup your sensitive files:
 2. By scheduling a cronjob  
 
 A config file is created so you don't have to ask about backup options again.  
+⚠️ This means that you have to delete the config file if you want to make another backup.  
 
 To run the script:
 ```bash

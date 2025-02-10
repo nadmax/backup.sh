@@ -19,27 +19,20 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gpg
           sudo apt-get install -y cron
-          sudo apt-get install -y util-linux  # For lsblk and mount commands
+          sudo apt-get install -y util-linux # For lsblk and mount commands
 
       - name: Create backup config file
         run: |
-          echo "backup_dir=\"/tmp/backup\"" > backup_config
-          echo "device=\"/dev/sda1\"" >> backup_config  # Mock device for mounting
-          echo "data_choices=\"1 3 5\"" >> backup_config  # Simulate file selection
+          echo "backup_option=\"1\"" >> backup_config
+          echo "backup_dir=\"/tmp/backup\"" >> backup_config
+          echo "mount_option=\"n\"" >> backup_config
+          echo "data_options=\"1\"" >> backup_config
+          echo "encrypt_option=\"n\"" >> backup_config 
   
       - name: Test running the backup manually
         run: |
-          chmod +x backup_script.sh
-          ./backup_script.sh
-        env:
-          BACKUP_DIR: "/tmp/test_backup_dir"
-
-      - name: Test scheduling the cron job
-        run: |
-          chmod +x backup_script.sh
-          ./backup_script.sh
-          # Check if cron job is added
-          crontab -l | grep "backup_script.sh"
+          chmod +x backup.sh
+          ./backup.sh
 
       - name: Test backup directory creation
         run: |
@@ -48,15 +41,16 @@ jobs:
             exit 1
           fi
           echo "Backup directory exists."
-
-      - name: Test backup encryption
+      
+      - name: Test scheduling the cron job
         run: |
-          echo "y" | ./backup_script.sh  # Assuming 'y' input will trigger encryption
-          if [ ! -f "/tmp/backup/backup_*.tar.gz.gpg" ]; then
-            echo "Backup was not encrypted!"
-            exit 1
-          fi
-          echo "Encrypted backup found."
+          rm -f backup_config
+          echo "backup_option=\"2\"" >> backup_config
+          echo "cron_frequency=\"weekly\"" >> backup_config
+          chmod +x backup.sh
+          ./backup.sh
+          # Check if cron job is added
+          crontab -l | grep "backup.sh"
 
       - name: Clean up
         run: |

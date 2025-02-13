@@ -71,7 +71,10 @@ backup_files() {
     echo "6) Secure app configs (~/.config, ~/.mozilla, ~/.google-chrome)"
     echo "7) Logs & history (~/.bash_history, /var/log/auth.log)"
     echo "8) SSL & GPG keys (/etc/ssl/private, ~/.gnupg)"
-    echo "9) Everything above"
+    echo "9) Systemd services (/etc/systemd/system, /lib/systemd/system, ~/.config/systemd/user)"
+    echo "10) Init.d services (/etc/init.d, /etc/rc*.d)"
+    echo "11) Everything above including services"
+
 
     if [ -z "$data_options" ]; then
         read -p $'\nEnter your choices (e.g., 1 3 5): ' data_options
@@ -79,15 +82,27 @@ backup_files() {
 
     for option in $data_options; do
         case $option in
-            1) selected_files+=("$HOME/.ssh") ;;
-            2) selected_files+=("/etc/shadow" "/etc/passwd") ;;
-            3) selected_files+=("$HOME/.bashrc" "$HOME/.zshrc") ;;
-            4) selected_files+=("$HOME/.gitconfig") ;;
-            5) selected_files+=("/etc/hosts" "/etc/resolv.conf") ;;
-            6) selected_files+=("$HOME/.config" "$HOME/.mozilla" "$HOME/.google-chrome") ;;
-            7) selected_files+=("$HOME/.bash_history" "/var/log/auth.log") ;;
-            8) selected_files+=("/etc/ssl/private" "$HOME/.gnupg") ;;
-            9) selected_files=("$HOME/.ssh" "/etc/shadow" "/etc/passwd" "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.gitconfig" "/etc/hosts" "/etc/resolv.conf" "$HOME/.config" "$HOME/.mozilla" "$HOME/.google-chrome" "$HOME/.bash_history" "/var/log/auth.log" "/etc/ssl/private" "$HOME/.gnupg") ;;
+            1)  selected_files+=("$HOME/.ssh") ;;
+            2)  selected_files+=("/etc/shadow" "/etc/passwd") ;;
+            3)  selected_files+=("$HOME/.bashrc" "$HOME/.zshrc") ;;
+            4)  selected_files+=("$HOME/.gitconfig") ;;
+            5)  selected_files+=("/etc/hosts" "/etc/resolv.conf") ;;
+            6)  selected_files+=("$HOME/.config" "$HOME/.mozilla" "$HOME/.google-chrome") ;;
+            7)  selected_files+=("$HOME/.bash_history" "/var/log/auth.log") ;;
+            8)  selected_files+=("/etc/ssl/private" "$HOME/.gnupg") ;;
+            9)  selected_files+=("/etc/systemd/system" "/lib/systemd/system" "$HOME/.config/systemd/user") ;;
+            9)  selected_files+=("$HOME/.ssh" "/etc/shadow" "/etc/passwd" "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.gitconfig" "/etc/hosts" "/etc/resolv.conf" "$HOME/.config" "$HOME/.mozilla" "$HOME/.google-chrome" "$HOME/.bash_history" "/var/log/auth.log" "/etc/ssl/private" "$HOME/.gnupg") ;;
+            10) selected_files+=("/etc/init.d" "/etc/rc*.d") ;;
+            11) selected_files+=(
+                    "$HOME/.ssh" "/etc/shadow" "/etc/passwd"
+                    "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.gitconfig"
+                    "/etc/hosts" "/etc/resolv.conf" "$HOME/.config"
+                    "$HOME/.mozilla" "$HOME/.google-chrome"
+                    "$HOME/.bash_history" "/var/log/auth.log"
+                    "/etc/ssl/private" "$HOME/.gnupg"
+                    "/etc/systemd/system" "/lib/systemd/system" "$HOME/.config/systemd/user"
+                    "/etc/init.d" "/etc/rc*.d"
+                ) ;;
             *) echo "Invalid choice: $option" ;;
         esac
     done
